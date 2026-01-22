@@ -213,6 +213,20 @@ class LoraRadioEnergyModel : public DeviceEnergyModel
     void SetSleepCurrentA(double sleepCurrentA);
 
     /**
+     * Sets the fixed charge overhead per transmission.
+     *
+     * @param charge The fixed charge overhead per transmission [Coulombs].
+     */
+    void SetTxOverheadCharge(double charge);
+    
+    /**
+     * Gets the fixed charge overhead per transmission.
+     *
+     * @return The fixed charge overhead per transmission [Coulombs].
+     */
+    double GetTxOverheadCharge() const;
+
+    /**
      * @return Current state.
      */
     EndDeviceLoraPhy::State GetCurrentState() const;
@@ -317,6 +331,7 @@ class LoraRadioEnergyModel : public DeviceEnergyModel
     double m_rxCurrentA;    ///< receive current
     double m_idleCurrentA;  ///< idle current
     double m_sleepCurrentA; ///< sleep current
+    double m_txOverheadCharge; ///< The fixed charge overhead per transmission [Coulombs]
     // NOTICE VERY WELL: Current  Model linear or constant as possible choices
     Ptr<LoraTxCurrentModel> m_txCurrentModel; ///< current model
 

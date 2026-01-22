@@ -10,6 +10,7 @@
 
 #include "ns3/energy-source.h"
 #include "ns3/log.h"
+#include "ns3/lora-energy-source.h"
 #include "ns3/pointer.h"
 #include "ns3/simulator.h"
 
@@ -59,6 +60,12 @@ LoraRadioEnergyModel::GetTypeId()
                           PointerValue(),
                           MakePointerAccessor(&LoraRadioEnergyModel::m_txCurrentModel),
                           MakePointerChecker<LoraTxCurrentModel>())
+            .AddAttribute("TxOverheadCharge",
+                          "The fixed charge overhead per transmission in Coulombs.",
+                          DoubleValue(0.0), // default no overhead
+                          MakeDoubleAccessor(&LoraRadioEnergyModel::SetTxOverheadCharge,
+                                             &LoraRadioEnergyModel::GetTxOverheadCharge),
+                          MakeDoubleChecker<double>())
             .AddTraceSource(
                 "TotalEnergyConsumption",
                 "Total energy consumption of the radio device.",
@@ -161,6 +168,19 @@ LoraRadioEnergyModel::SetSleepCurrentA(double sleepCurrentA)
     m_sleepCurrentA = sleepCurrentA;
 }
 
+void
+LoraRadioEnergyModel::SetTxOverheadCharge(double charge)
+{
+    NS_LOG_FUNCTION(this << charge);
+    m_txOverheadCharge = charge;
+}
+
+double
+LoraRadioEnergyModel::GetTxOverheadCharge() const
+{
+    return m_txOverheadCharge;
+}
+
 EndDeviceLoraPhy::State
 LoraRadioEnergyModel::GetCurrentState() const
 {
@@ -228,6 +248,29 @@ LoraRadioEnergyModel::ChangeState(int newState)
 
     // notify energy source
     m_source->UpdateEnergySource();
+
+    if (EndDeviceLoraPhy::State(newState) == EndDeviceLoraPhy::State::TX)
+    {
+        double supplyVoltage = m_source->GetSupplyVoltage();
+        double overheadEnergy = m_txOverheadCharge * supplyVoltage; // E = Q * V
+
+        // try to cast to LoraEnergySource
+        Ptr<LoraEnergySource> loraSource = DynamicCast<LoraEnergySource>(m_source);
+        if (loraSource)
+        {
+            loraSource->ConsumeFixedEnergy(overheadEnergy);
+        }
+        else
+        {
+            NS_LOG_WARN("LoraRadioEnergyModel: EnergySource is not LoraEnergySource, fixed TX "
+                        "overhead ignored.");
+        }
+
+        // update internal energy consumption for Trace
+        m_totalEnergyConsumption += overheadEnergy;
+
+        NS_LOG_DEBUG("LoraRadioEnergyModel: Added TX overhead energy: " << overheadEnergy << " J");
+    }
 
     // in case the energy source is found to be depleted during the last update, a callback might be
     // invoked that might cause a change in the Lora PHY state (e.g., the PHY is put into SLEEP
